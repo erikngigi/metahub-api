@@ -1,8 +1,28 @@
 class AggregatorError(Exception):
-    """Base for all application errors. Handlers (written later) map these to JSON."""
+    """Base for all application errors. handlers.py maps these to JSON."""
 
     status_code: int = 500
     code: str = "internal_error"
+
+    def __init__(self, message: str | None = None) -> None:
+        self.message = message or self.code.replace("_", " ")
+        super().__init__(self.message)
+
+
+# ---------- Client-facing errors ----------
+
+
+class AuthenticationError(AggregatorError):
+    status_code = 401
+    code = "unauthorized"
+
+
+class ValidationFailed(AggregatorError):
+    status_code = 422
+    code = "validation_error"
+
+
+# ---------- Upstream provider errors ----------
 
 
 class ProviderError(AggregatorError):
@@ -13,8 +33,8 @@ class ProviderError(AggregatorError):
 
     def __init__(self, provider: str, message: str | None = None) -> None:
         self.provider = provider
-        self.message = message or self.code.replace("_", " ")
-        super().__init__(f"[{provider}] {self.message}")
+        super().__init__(message)
+        self.args = (f"[{provider}] {self.message}",)
 
 
 class ProviderTimeout(ProviderError):
