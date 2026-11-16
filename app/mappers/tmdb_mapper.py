@@ -17,7 +17,7 @@ Details that can't be used raise ``ProviderBadResponse``.
 """
 
 from app.exceptions.errors import ProviderBadResponse
-from app.models.domain.media import Episode, Media, MediaType, Movie, Series
+from app.models.domain.media import Episode, Media, MediaStatus, MediaType, Movie, Series
 from app.models.domain.search_result import SearchResult
 from app.models.raw.tmdb import (
     TmdbEpisode,
@@ -34,7 +34,15 @@ IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 
 _KIND_TO_TYPE = {"movie": MediaType.MOVIE, "tv": MediaType.SERIES}
 _ENDED_STATUSES = {"ended", "canceled", "cancelled"}
-
+_STATUS_MAP = {
+    "returning series": MediaStatus.ONGOING,
+    "in production": MediaStatus.UPCOMING,
+    "planned": MediaStatus.UPCOMING,
+    "pilot": MediaStatus.UPCOMING,
+    "ended": MediaStatus.ENDED,
+    "canceled": MediaStatus.CANCELLED,
+    "cancelled": MediaStatus.CANCELLED,
+}
 
 # ---------- Cleaning helpers ----------
 
@@ -78,6 +86,15 @@ def _genre_names(genres: list[TmdbGenre]) -> list[str]:
 def _imdb_id(external_ids: TmdbExternalIds | None) -> str | None:
     """Return the cleaned IMDb ID from an external-ids block, if present."""
     return _clean(external_ids.imdb_id) if external_ids else None
+
+
+def _map_status(value: str | None) -> MediaStatus | None:
+    """Translate TMDB's free-text status into ``MediaStatus``.
+
+    Returns ``None`` for missing or unrecognised values, so a new TMDB
+    status never breaks a request.
+    """
+    return _STATUS_MAP.get((value or "").strip().lower())
 
 
 # ---------- Search ----------
@@ -187,6 +204,8 @@ def map_tv(raw: TmdbTvDetails) -> Series:
         poster_url=_image_url(raw.poster_path),
         end_year=_parse_year(raw.last_air_date) if has_ended else None,
         total_seasons=raw.number_of_seasons or None,
+        total_episodes=raw.number_of_episodes or None,
+        status=_map_status(raw.status),
     )
 
 
@@ -224,6 +243,7 @@ def map_episode(
         source_id=f"tv:{series_id}:{season}:{episode}",
         imdb_id=_imdb_id(raw.external_ids),
         title=title,
+        original_title=title,
         year=_parse_year(raw.air_date),
         plot=_clean(raw.overview),
         rating=_rating(raw.vote_average),
