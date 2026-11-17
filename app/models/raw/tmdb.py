@@ -127,6 +127,25 @@ class TmdbTvDetails(TmdbModel):
     external_ids: TmdbExternalIds | None = None
 
 
+class TmdbSeasonDetails(TmdbModel):
+    """Response of ``/tv/{id}/season/{n}``.
+
+    Attributes:
+        air_date: Date the season started; ``""`` or ``null`` if unannounced.
+        poster_path: Path to the season poster, not a full URL.
+        episodes: Every episode of the season. TMDB also sends crew and guest
+            stars per episode; those fields are ignored.
+    """
+
+    id: int | None = None
+    name: str | None = None
+    overview: str | None = None
+    air_date: str | None = None
+    poster_path: str | None = None
+    season_number: int | None = None
+    episodes: list[TmdbEpisode] = Field(default_factory=list)
+
+
 class TmdbEpisode(TmdbModel):
     """Response of ``/tv/{id}/season/{n}/episode/{m}``.
 

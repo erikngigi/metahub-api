@@ -13,7 +13,6 @@ Errors:
     error-text parsing is needed here.
 """
 
-import asyncio
 import logging
 from typing import Any, TypeVar
 
@@ -23,13 +22,13 @@ from app.core.config import Settings
 from app.core.http_client import HttpClient
 from app.exceptions.errors import ProviderAuthError, ProviderBadResponse, ProviderNotFound
 from app.mappers import tmdb_mapper
-from app.models.domain.media import Media, MediaType
+from app.models.domain.media import Media, MediaType, Movie, Series
 from app.models.domain.search_result import SearchResult
+from app.models.domain.season import SeasonDetailsResponse
 from app.models.raw.tmdb import (
-    TmdbEpisode,
-    TmdbExternalIds,
     TmdbMovieDetails,
     TmdbSearchResponse,
+    TmdbSeasonDetails,
     TmdbTvDetails,
 )
 from app.providers.base import BaseProvider
@@ -114,53 +113,78 @@ class TmdbProvider(BaseProvider):
             results = [r for r in results if r.year == year]
         return results
 
+        # ---------- Details: movies ----------
+
+    async def get_movie(self, movie_id: int) -> Movie:
+        """Fetch full details for one movie.
+
+        Calls ``GET /movie/{movie_id}``.
+
+        Raises:
+            ProviderNotFound: TMDB has no such movie.
+            ProviderBadResponse: TMDB's data failed validation.
+        """
+        data = await self._fetch(f"/movie/{movie_id}")
+        raw = self._validate(TmdbMovieDetails, data, "movie details")
+        try:
+            return tmdb_mapper.map_movie(raw)
+        except ValidationError as exc:
+            self._log_domain_error(exc)
+            raise ProviderBadResponse(self.name, "movie failed domain validation") from exc
+
+    # ---------- Details: shows ----------
+
+    async def get_show(self, show_id: int) -> Series:
+        """Fetch full details for one TV show.
+
+        Calls ``GET /tv/{show_id}?append_to_response=external_ids``. The extra
+        parameter is what supplies the IMDb ID, which TMDB omits by default.
+
+        Raises:
+            ProviderNotFound: TMDB has no such show.
+            ProviderBadResponse: TMDB's data failed validation.
+        """
+        data = await self._fetch(f"/tv/{show_id}", {"append_to_response": "external_ids"})
+        raw = self._validate(TmdbTvDetails, data, "tv details")
+        try:
+            return tmdb_mapper.map_tv(raw)
+        except ValidationError as exc:
+            self._log_domain_error(exc)
+            raise ProviderBadResponse(self.name, "show failed domain validation") from exc
+
+    async def get_show_season(self, show_id: int, season: int) -> SeasonDetailsResponse:
+        """Fetch one season of a TV show, with its episode list.
+
+        Calls ``GET /tv/{show_id}/season/{season}``. One request returns both
+        the season's details and every episode in it.
+
+        Raises:
+            ProviderNotFound: TMDB has no such show or season.
+            ProviderBadResponse: TMDB's data failed validation.
+        """
+        data = await self._fetch(f"/tv/{show_id}/season/{season}")
+        raw = self._validate(TmdbSeasonDetails, data, "season details")
+        try:
+            return tmdb_mapper.map_season_details(raw, show_id=show_id, season=season)
+        except ValidationError as exc:
+            self._log_domain_error(exc)
+            raise ProviderBadResponse(self.name, "season failed domain validation") from exc
+
+    # ---------- Generic entry point ----------
+
     async def get_details(self, provider_id: str) -> Media:
-        """Fetch full details for one title.
+        """Dispatch a prefixed ID to the movie or show method.
 
-        Args:
-            provider_id: A prefixed TMDB ID: ``movie:27205``, ``tv:1396`` or
-                ``tv:1396:1:2`` (series, season, episode). These are the
-                ``source_id`` values returned by ``search()``.
-
-        Returns:
-            A ``Movie``, ``Series`` or ``Episode``. Episode lookups make two
-            concurrent requests because the parent series' IMDb ID is not part
-            of the episode response.
+        Accepts ``movie:27205`` and ``tv:1396``. Seasons are served by
+        ``get_show_season`` and are not available through this method.
 
         Raises:
             ProviderNotFound: The ID is malformed, or TMDB has no such item.
-            ProviderAuthError: No API key configured, or TMDB rejected it.
-            ProviderBadResponse: TMDB's data failed validation.
-            ProviderError: Any other upstream failure.
         """
-        kind, tmdb_id, season, episode = self._parse_id(provider_id)
-
-        try:
-            if kind == "movie":
-                data = await self._fetch(f"/movie/{tmdb_id}")
-                return tmdb_mapper.map_movie(self._validate(TmdbMovieDetails, data, "movie details"))
-
-            if season is None or episode is None:
-                data = await self._fetch(f"/tv/{tmdb_id}", {"append_to_response": "external_ids"})
-                return tmdb_mapper.map_tv(self._validate(TmdbTvDetails, data, "tv details"))
-
-            episode_data, series_ids_data = await asyncio.gather(
-                self._fetch(
-                    f"/tv/{tmdb_id}/season/{season}/episode/{episode}",
-                    {"append_to_response": "external_ids"},
-                ),
-                self._fetch(f"/tv/{tmdb_id}/external_ids"),
-            )
-            return tmdb_mapper.map_episode(
-                self._validate(TmdbEpisode, episode_data, "episode details"),
-                series_id=tmdb_id,
-                season=season,
-                episode=episode,
-                series_ids=self._validate(TmdbExternalIds, series_ids_data, "external ids"),
-            )
-        except ValidationError as exc:
-            # The mapped data failed our strict domain models.
-            raise ProviderBadResponse(self.name, "details failed domain validation") from exc
+        kind, tmdb_id = self._parse_id(provider_id)
+        if kind == "movie":
+            return await self.get_movie(tmdb_id)
+        return await self.get_show(tmdb_id)
 
     # ---------- Internals ----------
 
@@ -206,22 +230,17 @@ class TmdbProvider(BaseProvider):
         except ValidationError as exc:
             raise ProviderBadResponse(self.name, f"unexpected {what} payload") from exc
 
-    def _parse_id(self, provider_id: str) -> tuple[str, int, int | None, int | None]:
-        """Split a prefixed ID into ``(kind, tmdb_id, season, episode)``.
+    def _log_domain_error(self, exc: ValidationError) -> None:
+        """Log which field failed our strict models, without logging the data."""
+        logger.error("TMDB domain validation failed: %s", exc.errors(include_input=False))
 
-        ``season`` and ``episode`` are ``None`` unless the ID has four parts.
+    def _parse_id(self, provider_id: str) -> tuple[str, int]:
+        """Split ``movie:<id>`` or ``tv:<id>`` into ``(kind, tmdb_id)``.
 
         Raises:
-            ProviderNotFound: If the format isn't one of the three accepted forms.
+            ProviderNotFound: If the format isn't one of the two accepted forms.
         """
-        parts = provider_id.strip().split(":")
-        try:
-            if parts[0] == "movie" and len(parts) == 2:
-                return "movie", int(parts[1]), None, None
-            if parts[0] == "tv" and len(parts) == 2:
-                return "tv", int(parts[1]), None, None
-            if parts[0] == "tv" and len(parts) == 4:
-                return "tv", int(parts[1]), int(parts[2]), int(parts[3])
-        except ValueError:
-            pass
+        kind, _, number = provider_id.strip().partition(":")
+        if kind in ("movie", "tv") and number.isdigit():
+            return kind, int(number)
         raise ProviderNotFound(self.name, f"invalid id format: {provider_id!r}")

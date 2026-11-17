@@ -16,9 +16,12 @@ Search items that can't be used (people, missing title) are dropped silently.
 Details that can't be used raise ``ProviderBadResponse``.
 """
 
+from datetime import date
+
 from app.exceptions.errors import ProviderBadResponse
 from app.models.domain.media import Episode, Media, MediaStatus, MediaType, Movie, Series
 from app.models.domain.search_result import SearchResult
+from app.models.domain.season import EpisodeListItem, Season, SeasonDetailsResponse
 from app.models.raw.tmdb import (
     TmdbEpisode,
     TmdbExternalIds,
@@ -26,6 +29,7 @@ from app.models.raw.tmdb import (
     TmdbMovieDetails,
     TmdbSearchItem,
     TmdbSearchResponse,
+    TmdbSeasonDetails,
     TmdbTvDetails,
 )
 
@@ -67,6 +71,17 @@ def _parse_year(date: str | None) -> int | None:
     return int(cleaned[:4])
 
 
+def _parse_date(value: str | None) -> date | None:
+    """Parse ``YYYY-MM-DD``; ``None`` for empty or malformed values."""
+    cleaned = _clean(value)
+    if not cleaned:
+        return None
+    try:
+        return date.fromisoformat(cleaned)
+    except ValueError:
+        return None
+
+
 def _image_url(path: str | None) -> str | None:
     """Turn a TMDB image path into an absolute URL, or ``None`` if empty."""
     cleaned = _clean(path)
@@ -95,6 +110,13 @@ def _map_status(value: str | None) -> MediaStatus | None:
     status never breaks a request.
     """
     return _STATUS_MAP.get((value or "").strip().lower())
+
+
+def _format_listing(season: int, number: int | None) -> str | None:
+    """Return `S01E08` -style text or `None` when episode number is unknown."""
+    if number is None:
+        return None
+    return f"S{season:02d}E{number:02d}"
 
 
 # ---------- Search ----------
@@ -209,48 +231,48 @@ def map_tv(raw: TmdbTvDetails) -> Series:
     )
 
 
-def map_episode(
-    raw: TmdbEpisode,
-    *,
-    series_id: int,
-    season: int,
-    episode: int,
-    series_ids: TmdbExternalIds | None = None,
-) -> Episode:
-    """Convert an episode response into an ``Episode``.
-
-    The season and episode numbers come from the caller (they were part of the
-    request) rather than from the payload, so they always match the ID that was
-    asked for.
-
-    Args:
-        raw: The raw episode details.
-        series_id: TMDB ID of the parent series.
-        season: Season number requested.
-        episode: Episode number requested.
-        series_ids: External IDs of the parent series, used for
-            ``series_imdb_id``.
-
-    Raises:
-        ProviderBadResponse: If the episode has no name.
-    """
-    title = _clean(raw.name)
-    if not title:
-        raise ProviderBadResponse(PROVIDER_NAME, "episode details missing name")
-
-    return Episode(
+def map_season_episode(raw: TmdbEpisode, season: int) -> EpisodeListItem | None:
+    """Convert one episode of a season into a list item, or ``None`` if it has no name."""
+    name = _clean(raw.name)
+    if not name:
+        return None
+    return EpisodeListItem(
         source=PROVIDER_NAME,
-        source_id=f"tv:{series_id}:{season}:{episode}",
-        imdb_id=_imdb_id(raw.external_ids),
-        title=title,
-        original_title=title,
-        year=_parse_year(raw.air_date),
-        plot=_clean(raw.overview),
-        rating=_rating(raw.vote_average),
-        poster_url=_image_url(raw.still_path),
-        series_imdb_id=_imdb_id(series_ids),
+        episode_id=str(raw.id),
         season=season,
-        episode=episode,
+        number=raw.episode_number,
+        name=name,
+        air_date=_parse_date(raw.air_date),
+        runtime_minutes=raw.runtime or None,
+        rating=_rating(raw.vote_average),
+        episode_format_listing=_format_listing(season, raw.episode_number),
+    )
+
+
+def map_season_details(raw: TmdbSeasonDetails, *, show_id: int, season: int) -> SeasonDetailsResponse:
+    """Convert a season response into a ``SeasonDetailsResponse``.
+
+    The season number comes from the request so it always matches the URL.
+    If TMDB has no season start date, the earliest episode air date is used.
+    ``end_date`` is the latest episode air date, which for a running season may
+    be a scheduled future date.
+    """
+    episodes = [e for e in (map_season_episode(i, season) for i in raw.episodes) if e is not None]
+    air_dates = [e.air_date for e in episodes if e.air_date]
+
+    return SeasonDetailsResponse(
+        season=Season(
+            source=PROVIDER_NAME,
+            source_id=f"tv:{show_id}:{season}",
+            season_number=season,
+            name=_clean(raw.name),
+            episode_count=len(raw.episodes) or None,
+            premiere_date=_parse_date(raw.air_date) or (min(air_dates) if air_dates else None),
+            end_date=max(air_dates) if air_dates else None,
+            plot=_clean(raw.overview),
+            poster_url=_image_url(raw.poster_path),
+        ),
+        episodes=episodes,
     )
 
 

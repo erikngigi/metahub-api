@@ -5,7 +5,7 @@ from app.core.config import Settings, get_settings
 from app.core.security import require_api_key
 from app.providers.base import BaseProvider
 
-router = APIRouter(tags=["health"])
+router = APIRouter(tags=["Health"])
 
 
 @router.get("/health")

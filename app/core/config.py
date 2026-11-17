@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # --- Providers ---
     tmdb_read_access_token: SecretStr | None = None
     tmdb_base_url: str = "https://api.themoviedb.org/3"
+    tvmaze_base_url: str = "https://api.tvmaze.com"
 
     @property
     def client_api_key_set(self) -> frozenset[str]:
