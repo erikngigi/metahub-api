@@ -62,15 +62,9 @@ class MediaBase(BaseModel):
     source: str  # which provider produced this record
     source_id: int  # that provider's ID for the item
 
-    # --- Identifiers ---
-    # Known keys: imdb, tmdb, tvdb, anilist, mal, anidb, kitsu
-    # external_ids: dict[str, str] = Field(default_factory=dict)
-    # imdb_id: str | None = None  # kept for convenience; synced with external_ids["imdb"]
-
     # --- Titles ---
     title: str
     original_title: str | None = None
-    # alternative_titles: list[str] = Field(default_factory=list)  # romaji, English, native, aliases
 
     # --- Descriptive data ---
     year: int | None = None
@@ -81,42 +75,6 @@ class MediaBase(BaseModel):
 
     # --- Classification ---
     is_anime: bool | None = None  # None = unknown; a mapper sets it only when confident
-
-    # @model_validator(mode="after")
-    # def _normalise(self) -> "MediaBase":
-    #     """Enforce consistency rules after validation.
-    #
-    #     - Keeps ``imdb_id`` and ``external_ids["imdb"]`` in agreement,
-    #       whichever one was supplied.
-    #     - Lowercases ``external_ids`` keys and drops empty entries.
-    #     - Removes duplicate alternative titles (case-insensitive) and any that
-    #       repeat ``title`` or ``original_title``, preserving order.
-    #
-    #     Mutates ``self`` in place. This is safe only while
-    #     ``validate_assignment`` is off.
-    #     """
-    #
-    #     # Keep imdb_id and external_ids["imdb"] in agreement, in either direction.
-    #     ids = {k.strip().lower(): v for k, v in self.external_ids.items() if k.strip() and v}
-    #     if self.imdb_id and "imdb" not in ids:
-    #         ids["imdb"] = self.imdb_id
-    #     elif "imdb" in ids and not self.imdb_id:
-    #         self.imdb_id = ids["imdb"]
-    #     self.external_ids = ids
-    #
-    #     # De-duplicate alternative titles (case-insensitive), preserving order,
-    #     # and drop any that just repeat the main or original title.
-    #     seen = {self.title.casefold()}
-    #     if self.original_title:
-    #         seen.add(self.original_title.casefold())
-    #     unique: list[str] = []
-    #     for alt in self.alternative_titles:
-    #         alt = alt.strip()
-    #         if alt and alt.casefold() not in seen:
-    #             seen.add(alt.casefold())
-    #             unique.append(alt)
-    #     self.alternative_titles = unique
-    #     return self
 
 
 class Movie(MediaBase):

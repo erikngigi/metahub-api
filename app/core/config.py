@@ -38,7 +38,6 @@ class Settings(BaseSettings):
 
     # --- Providers URLs ---
     tmdb_base_url: str | None = None
-    tvmaze_base_url: str | None = None
     tenrai_base_url: str | None = None
 
     @property

@@ -13,7 +13,6 @@ from app.core.http_client import HttpClient
 from app.core.logging import setup_logging
 from app.exceptions.handlers import register_exception_handlers
 from app.providers.tmdb_provider import TmdbProvider
-from app.providers.tvmaze_provider import TvmazeProvider
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,8 @@ async def lifespan(app: FastAPI):
     setup_logging(settings)
 
     http = HttpClient(settings)
-    providers = [TmdbProvider(http, settings), TvmazeProvider(http, settings)]
+    # providers = [TmdbProvider(http, settings), TvmazeProvider(http, settings)]
+    providers = [TmdbProvider(http, settings)]
 
     for provider in providers:
         if not provider.is_configured:
