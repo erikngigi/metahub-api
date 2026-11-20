@@ -1,3 +1,5 @@
+"""Logging formatters and root logger setup for the application."""
+
 import json
 import logging
 import sys
@@ -6,7 +8,10 @@ from app.core.config import Settings
 
 
 class JsonFormatter(logging.Formatter):
+    """Format log records as single-line JSON objects."""
+
     def format(self, record: logging.LogRecord) -> str:
+        """Serialize a ``LogRecord`` into a JSON string, including formatted exceptions."""
         payload = {
             "time": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
             "level": record.levelname,
@@ -19,6 +24,7 @@ class JsonFormatter(logging.Formatter):
 
 
 def setup_logging(settings: Settings) -> None:
+    """Configure stdout logging format and level while quieting noisy HTTP libraries."""
     handler = logging.StreamHandler(sys.stdout)
     if settings.log_json:
         handler.setFormatter(JsonFormatter())

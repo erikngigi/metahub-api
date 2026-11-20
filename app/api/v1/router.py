@@ -1,3 +1,5 @@
+"""Top-level API v1 router assembling public and API-key-protected routes"""
+
 from fastapi import APIRouter, Depends
 
 from app.controllers import (

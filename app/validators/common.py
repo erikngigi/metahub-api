@@ -1,3 +1,5 @@
+"""Common input sanitization and validation helpers for query and path parameters."""
+
 import re
 from datetime import date
 
@@ -24,6 +26,11 @@ def sanitize_query(value: str) -> str:
 
 
 def validate_year(year: int | None) -> int | None:
+    """Validate a release or air year against allowed bounds.
+
+    Raises:
+        ValidationFailed: If ``year`` is outside ``MIN_YEAR`` and the allowed maximum year.
+    """
     if year is None:
         return None
     max_year = date.today().year + 5  # allow announced upcoming releases
@@ -33,6 +40,11 @@ def validate_year(year: int | None) -> int | None:
 
 
 def validate_season_episode(season: int | None, episode: int | None) -> tuple[int | None, int | None]:
+    """Validate season and episode numbers and ensure episode requires a season.
+
+    Raises:
+        ValidationFailed: If ``episode`` is set without ``season``, or if either is out of range.
+    """
     if episode is not None and season is None:
         raise ValidationFailed("episode requires season")
     if season is not None and not 0 <= season <= MAX_SEASON:  # season 0 = specials

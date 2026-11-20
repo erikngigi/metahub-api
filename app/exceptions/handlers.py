@@ -1,3 +1,5 @@
+"""FastAPI exception handlers formatting errors into consistent JSON responses."""
+
 import logging
 from typing import Any
 
@@ -19,11 +21,13 @@ def _error_response(
     headers: dict[str, str] | None = None,
     **extra: Any,
 ) -> JSONResponse:
+    """Build a standardized JSON error response payload."""
     body = {"error": {"code": code, "message": message, **extra}}
     return JSONResponse(status_code=status_code, content=body, headers=headers)
 
 
 async def aggregator_error_handler(request: Request, exc: AggregatorError) -> JSONResponse:
+    """Log and convert ``AggregatorError`` instances into JSON error responses."""
     level = logging.ERROR if exc.status_code >= 500 else logging.WARNING
     logger.log(level, "%s on %s %s: %s", exc.code, request.method, request.url.path, exc)
 
@@ -36,6 +40,7 @@ async def aggregator_error_handler(request: Request, exc: AggregatorError) -> JS
 
 
 async def request_validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Log and format FastAPI request validation errors into a ``422`` JSON response."""
     # Only loc and msg are returned. FastAPI's "input" and "ctx" fields can echo
     # client data back or contain values that aren't JSON serialisable.
     details = [
@@ -50,6 +55,7 @@ async def request_validation_handler(request: Request, exc: RequestValidationErr
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Convert framework-level Starlette HTTP exceptions into JSON error responses."""
     # Covers framework-level errors such as 404 (unknown route) and 405.
     return _error_response(
         exc.status_code,
@@ -60,12 +66,14 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Log unhandled exceptions with a traceback and return a generic ``500`` response."""
     # Full traceback goes to the log; the client only sees a generic message.
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return _error_response(500, "internal_error", "An unexpected error occurred")
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    """Register all application and framework exception handlers on the FastAPI app."""
     app.add_exception_handler(AggregatorError, aggregator_error_handler)
     app.add_exception_handler(RequestValidationError, request_validation_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)

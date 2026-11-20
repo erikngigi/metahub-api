@@ -1,3 +1,5 @@
+"""Abstract base contract for metadata provider adapters."""
+
 from abc import ABC, abstractmethod
 from typing import ClassVar
 
@@ -22,7 +24,13 @@ class BaseProvider(ABC):
         *,
         year: int | None = None,
         media_type: MediaType | None = None,
-    ) -> list[SearchResult]: ...
+    ) -> list[SearchResult]:
+        """Search for matching titles from the provider."""
+
+    ...
 
     @abstractmethod
-    async def get_details(self, provider_id: str) -> Media: ...
+    async def get_details(self, provider_id: str) -> Media:
+        """Fetch full media details for a provider-specific identifier."""
+
+    ...

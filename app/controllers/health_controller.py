@@ -1,3 +1,5 @@
+"""Health check and provider configuration status endpoints."""
+
 from fastapi import APIRouter, Depends
 
 from app.api.deps import get_providers
@@ -10,9 +12,11 @@ router = APIRouter(tags=["Health"])
 
 @router.get("/health")
 async def health(settings: Settings = Depends(get_settings)) -> dict:
+    """Return basic service health, application name, and active environment."""
     return {"status": "ok", "app": settings.app_name, "environment": settings.environment}
 
 
 @router.get("/providers/status", dependencies=[Depends(require_api_key)])
 async def providers_status(providers: list[BaseProvider] = Depends(get_providers)) -> dict:
+    """Return registration and configuration status for all providers."""
     return {"providers": [{"name": p.name, "configured": p.is_configured} for p in providers]}

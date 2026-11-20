@@ -1,3 +1,5 @@
+"""Configure stdout logging format and level while quieting noisy HTTP libraries."""
+
 import secrets
 
 from fastapi import Depends, HTTPException, Security, status

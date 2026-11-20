@@ -1,3 +1,5 @@
+"""Application configuration loaded from environment variables and ``.env`` files."""
+
 import os
 from functools import lru_cache
 from typing import Literal
@@ -10,6 +12,12 @@ _ACTIVE_ENV = os.getenv("ENVIRONMENT", "development").strip().lower()
 
 
 class Settings(BaseSettings):
+    """Runtime settings for the application, HTTP client, logging, and providers.
+
+    Values are read from environment variables and layered ``.env`` files based on
+    ``ENVIRONMENT`` (defaulting to ``"development"``).
+    """
+
     model_config = SettingsConfigDict(
         env_file=(".env", f".env.{_ACTIVE_ENV}"),  # later file wins
         env_file_encoding="utf-8",
@@ -42,14 +50,17 @@ class Settings(BaseSettings):
 
     @property
     def client_api_key_set(self) -> frozenset[str]:
+        """Return non-empty client API keys parsed from ``client_api_keys``."""
         return frozenset(k.strip() for k in self.client_api_keys.split(",") if k.strip())
 
     @property
     def is_development(self) -> bool:
+        """Return ``True`` when running in the ``development`` environment."""
         return self.environment == "development"
 
     @property
     def is_production(self) -> bool:
+        """Return ``True`` when running in the ``production`` environment."""
         return self.environment == "production"
 
 

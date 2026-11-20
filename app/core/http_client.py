@@ -1,3 +1,5 @@
+"""Async HTTP wrapper with retries and standardized provider error mapping."""
+
 import asyncio
 import logging
 from typing import Any
@@ -42,6 +44,19 @@ class HttpClient:
         params: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
     ) -> Any:
+        """Send an HTTP GET request and parse the response body as JSON.
+
+        Retries transient network errors, timeouts, and ``5xx`` responses with
+        exponential backoff, and maps HTTP and JSON errors to provider exceptions.
+
+        Raises:
+            ProviderAuthError: Upstream rejected credentials with ``401`` or ``403``.
+            ProviderNotFound: Upstream returned ``404``.
+            ProviderRateLimited: Upstream returned ``429``.
+            ProviderBadResponse: Upstream returned another ``4xx`` status or invalid JSON.
+            ProviderTimeout: Request timed out across all retry attempts.
+            ProviderUnavailable: Network error or ``5xx`` status persisted after retries.
+        """
         last_error: Exception | None = None
 
         for attempt in range(self._max_retries + 1):
@@ -81,4 +96,5 @@ class HttpClient:
         raise last_error
 
     async def aclose(self) -> None:
+        """Close the underlying ``httpx.AsyncClient`` connection pool."""
         await self._client.aclose()
