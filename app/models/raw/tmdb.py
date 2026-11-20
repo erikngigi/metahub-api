@@ -67,17 +67,6 @@ class TmdbSearchResponse(TmdbModel):
     total_results: int = 0
 
 
-class TmdbExternalIds(TmdbModel):
-    """IDs of the same title in other systems.
-
-    Returned by ``/tv/{id}/external_ids`` or by adding
-    ``append_to_response=external_ids`` to a details request.
-    """
-
-    imdb_id: str | None = None
-    tvdb_id: int | None = None
-
-
 class TmdbMovieDetails(TmdbModel):
     """Response of ``/movie/{id}``.
 
@@ -87,7 +76,6 @@ class TmdbMovieDetails(TmdbModel):
     """
 
     id: int
-    imdb_id: str | None = None
     title: str | None = None
     original_title: str | None = None
     release_date: str | None = None
@@ -153,7 +141,6 @@ class TmdbTvDetails(TmdbModel):
     vote_average: float | None = None
     seasons: list[TmdbSeasonSummary] = Field(default_factory=list)
     genres: list[TmdbGenre] = Field(default_factory=list)
-    external_ids: TmdbExternalIds | None = None
 
 
 class TmdbSeasonDetails(TmdbModel):
@@ -190,7 +177,6 @@ class TmdbEpisode(TmdbModel):
     air_date: str | None = None
     season_number: int | None = None
     episode_number: int | None = None
+    episode_type: str | None = None
     runtime: int | None = None
     vote_average: float | None = None
-    still_path: str | None = None
-    external_ids: TmdbExternalIds | None = None

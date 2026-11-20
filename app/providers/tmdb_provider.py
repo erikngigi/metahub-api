@@ -25,7 +25,7 @@ from app.exceptions.errors import ProviderAuthError, ProviderBadResponse, Provid
 from app.mappers import tmdb_mapper
 from app.models.domain.media import Media, MediaType, Movie, Series
 from app.models.domain.search_result import SearchResult
-from app.models.domain.season import EpisodeLabel, SeasonDetailsResponse
+from app.models.domain.season import SeasonDetailsResponse
 from app.models.raw.tmdb import (
     TmdbMovieDetails,
     TmdbSearchResponse,
@@ -166,39 +166,13 @@ class TmdbProvider(BaseProvider):
         """
         data = await self._fetch(f"/tv/{show_id}/season/{season}")
         raw = self._validate(TmdbSeasonDetails, data, "season details")
+        show = await self.get_show(show_id)
+
         try:
-            return tmdb_mapper.map_season_details(raw, show_id=show_id, season=season)
+            return tmdb_mapper.map_season_details(raw, show_id=show_id, season=season, title=show.title)
         except ValidationError as exc:
             self._log_domain_error(exc)
             raise ProviderBadResponse(self.name, "season failed domain validation") from exc
-
-    async def get_season_labels(self, show_id: int, season: int) -> list[EpisodeLabel]:
-        """Build ``Show S01E01 - Episode`` labels for every episode of a season.
-
-        Makes two concurrent requests: the show (for its name) and the season
-        (for its episodes). Episodes without a number are skipped, because a
-        label can't be built without one.
-
-        Raises:
-            ProviderNotFound: TMDB has no such show or season.
-            ProviderBadResponse: TMDB's data failed validation.
-        """
-        show, season_details = await asyncio.gather(
-            self.get_show(show_id),
-            self.get_show_season(show_id, season),
-        )
-        return [
-            EpisodeLabel(
-                label=format_episode_label(show.title, season, ep.number, ep.name),
-                show=show.title,
-                season=season,
-                episode=ep.number,
-                episode_title=ep.name,
-                source=self.name,
-            )
-            for ep in season_details.episodes
-            if ep.number is not None
-        ]
 
     # ---------- Generic entry point ----------
 

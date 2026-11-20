@@ -24,7 +24,6 @@ from app.models.domain.search_result import SearchResult
 from app.models.domain.season import EpisodeListItem, Season, SeasonDetailsResponse
 from app.models.raw.tmdb import (
     TmdbEpisode,
-    TmdbExternalIds,
     TmdbGenre,
     TmdbMovieDetails,
     TmdbSearchItem,
@@ -115,11 +114,6 @@ def _season_summaries(seasons: list[TmdbSeasonSummary]) -> list[SeasonSummary]:
     ]
 
 
-def _imdb_id(external_ids: TmdbExternalIds | None) -> str | None:
-    """Return the cleaned IMDb ID from an external-ids block, if present."""
-    return _clean(external_ids.imdb_id) if external_ids else None
-
-
 def _map_status(value: str | None) -> MediaStatus | None:
     """Translate TMDB's free-text status into ``MediaStatus``.
 
@@ -129,11 +123,11 @@ def _map_status(value: str | None) -> MediaStatus | None:
     return _STATUS_MAP.get((value or "").strip().lower())
 
 
-def _format_listing(season: int, number: int | None) -> str | None:
-    """Return `S01E08` -style text or `None` when episode number is unknown."""
-    if number is None:
+def _format_listing(title: str, season: int, episode_number: int | None, episode_name: str | None) -> str | None:
+    """Return `Show title S01E08 - episode name` -style text or `None` when episode number is unknown."""
+    if episode_number is None:
         return None
-    return f"S{season:02d}E{number:02d}"
+    return f"{title} S{season:02d}E{episode_number:02d} - {episode_name}"
 
 
 # ---------- Search ----------
@@ -158,9 +152,9 @@ def map_search_item(item: TmdbSearchItem, default_kind: str | None = None) -> Se
         return None
 
     if kind == "movie":
-        title, date = _clean(item.title), item.release_date
+        title, original_title, date = _clean(item.title), _clean(item.original_title), item.release_date
     else:
-        title, date = _clean(item.name), item.first_air_date
+        title, original_title, date = _clean(item.name), _clean(item.original_name), item.first_air_date
 
     if not title:
         return None
@@ -170,7 +164,7 @@ def map_search_item(item: TmdbSearchItem, default_kind: str | None = None) -> Se
         source_id=item.id,
         media_type=media_type,
         title=title,
-        original_title=_clean(item.original_title or item.original_name),
+        original_title=original_title,
         year=_parse_year(date),
         poster_url=_image_url(item.poster_path),
     )
@@ -229,7 +223,10 @@ def map_tv(raw: TmdbTvDetails) -> Series:
     Raises:
         ProviderBadResponse: If the show has no name.
     """
+
     title = _clean(raw.name)
+    original_title = _clean(raw.original_name)
+
     if not title:
         raise ProviderBadResponse(PROVIDER_NAME, "tv details missing name")
 
@@ -237,8 +234,8 @@ def map_tv(raw: TmdbTvDetails) -> Series:
     return Series(
         source=PROVIDER_NAME,
         source_id=raw.id,
-        imdb_id=_imdb_id(raw.external_ids),
         title=title,
+        original_title=original_title,
         year=_parse_year(raw.first_air_date),
         plot=_clean(raw.overview),
         genres=_genre_names(raw.genres),
@@ -253,7 +250,7 @@ def map_tv(raw: TmdbTvDetails) -> Series:
     )
 
 
-def map_season_episode(raw: TmdbEpisode, season: int) -> EpisodeListItem | None:
+def map_season_episode(raw: TmdbEpisode, season: int, title: str | None = None) -> EpisodeListItem | None:
     """Convert one episode of a season into a list item, or ``None`` if it has no name."""
     name = _clean(raw.name)
     if not name:
@@ -263,15 +260,18 @@ def map_season_episode(raw: TmdbEpisode, season: int) -> EpisodeListItem | None:
         episode_id=str(raw.id),
         season=season,
         number=raw.episode_number,
+        type=_clean(raw.episode_type),
         name=name,
         air_date=_parse_date(raw.air_date),
         runtime_minutes=raw.runtime or None,
         rating=_rating(raw.vote_average),
-        episode_format_listing=_format_listing(season, raw.episode_number),
+        formatted_episode_name=_format_listing(title, season, raw.episode_number, name),
     )
 
 
-def map_season_details(raw: TmdbSeasonDetails, *, show_id: int, season: int) -> SeasonDetailsResponse:
+def map_season_details(
+    raw: TmdbSeasonDetails, *, show_id: int, season: int, title: str | None
+) -> SeasonDetailsResponse:
     """Convert a season response into a ``SeasonDetailsResponse``.
 
     The season number comes from the request so it always matches the URL.
@@ -279,7 +279,7 @@ def map_season_details(raw: TmdbSeasonDetails, *, show_id: int, season: int) -> 
     ``end_date`` is the latest episode air date, which for a running season may
     be a scheduled future date.
     """
-    episodes = [e for e in (map_season_episode(i, season) for i in raw.episodes) if e is not None]
+    episodes = [e for e in (map_season_episode(i, season, title) for i in raw.episodes) if e is not None]
     air_dates = [e.air_date for e in episodes if e.air_date]
 
     return SeasonDetailsResponse(
@@ -294,7 +294,7 @@ def map_season_details(raw: TmdbSeasonDetails, *, show_id: int, season: int) -> 
             plot=_clean(raw.overview),
             poster_url=_image_url(raw.poster_path),
         ),
-        # episodes=episodes,
+        episodes=episodes,
     )
 
 

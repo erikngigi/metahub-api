@@ -10,7 +10,7 @@ from app.models.domain.media import Series
 class Season(BaseModel):
     """One season of a series, as a summary."""
 
-    source: str = Field(description="Provider name.", examples=["tvmaze"])
+    source: str = Field(description="Provider name.", examples=["tmdb"])
     source_id: str = Field(
         description="Season ID to pass to the episodes route. This is the provider's global "
         "season ID, not the season number.",
@@ -23,7 +23,6 @@ class Season(BaseModel):
     )
     premiere_date: date | None = Field(default=None, description="Date the season started airing.")
     end_date: date | None = Field(default=None, description="Date the season finished airing.")
-    network: str | None = Field(default=None, description="Broadcaster or streaming service.", examples=["NBC"])
     plot: str | None = Field(default=None, description="Season summary as plain text.")
     poster_url: str | None = Field(default=None, description="Season poster URL, or `null`.")
 
@@ -38,7 +37,7 @@ class SeasonsResponse(BaseModel):
 class EpisodeListItem(BaseModel):
     """One episode in a season's episode list."""
 
-    source: str = Field(description="Provider name.", examples=["tvmaze"])
+    source: str = Field(description="Provider name.", examples=["tmdb"])
     episode_id: str = Field(description="The provider's own ID for this episode.", examples=["59360"])
     season: int | None = Field(default=None, description="Season number.", examples=[1])
     number: int | None = Field(
@@ -53,28 +52,14 @@ class EpisodeListItem(BaseModel):
     air_date: date | None = Field(default=None, description="Original air date; `null` if unaired.")
     runtime_minutes: int | None = Field(default=None, description="Length in minutes.", examples=[60])
     rating: float | None = Field(default=None, description="User rating out of 10; `null` if unrated.")
-    episode_format_listing: str | None = Field(default=None, description="Episode format listing")
-
-
-class EpisodeLabel(BaseModel):
-    """A formatted episode name, with the data it was built from."""
-
-    label: str = Field(
-        description="Formatted name, e.g. `Southland S01E01 - Unknown Trouble`.",
-        examples=["Southland S01E01 - Unknown Trouble"],
-    )
-    # show: str = Field(description="Show title the label was built from.", examples=["Southland"])
-    # season: int = Field(description="Season number.", examples=[1])
-    # episode: int = Field(description="Episode number within the season.", examples=[1])
-    # episode_title: str = Field(description="Episode title as reported by the provider.", examples=["Unknown Trouble"])
-    # source: str = Field(description="Provider the names came from.", examples=["tmdb"])
+    formatted_episode_name: str | None = Field(default=None, description="Episode format listing")
 
 
 class SeasonDetailsResponse(BaseModel):
     """One season together with its episodes."""
 
     season: Season = Field(description="Summary of the season.")
-    # episodes: list[EpisodeListItem] = Field(description="Episodes in season order.")
+    episodes: list[EpisodeListItem] = Field(description="Episodes in season order.")
 
 
 class SeasonEpisodesResponse(BaseModel):
@@ -82,4 +67,4 @@ class SeasonEpisodesResponse(BaseModel):
 
     season_id: str = Field(description="The season ID that was requested.", examples=["season:2696"])
     count: int = Field(description="Number of episodes returned.", examples=[7])
-    episodes: list[EpisodeListItem] = Field(description="Episodes in TVMaze's order, which is airing order.")
+    episodes: list[EpisodeListItem] = Field(description="Episodes in TMDB's order, which is airing order.")
