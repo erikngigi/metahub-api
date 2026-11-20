@@ -101,6 +101,36 @@ class TmdbMovieDetails(TmdbModel):
     genres: list[TmdbGenre] = Field(default_factory=list)
 
 
+class TmdbSeasonSummary(TmdbModel):
+    """A season entry from the ``seasons`` list of ``/tv/{id}``.
+
+    This is a summary, not the full season. It has ``episode_count`` but no
+    episodes. To get the episodes, call ``/tv/{id}/season/{n}``, which is
+    described by ``TmdbSeasonDetails``.
+
+    Attributes:
+        id: TMDB's ID for the season, not the series ID.
+        name: Display name such as ``"Season 1"``. Season 0 is usually named
+            ``"Specials"``.
+        overview: Season synopsis. Often ``""`` for seasons without one.
+        air_date: Date the season started; ``""`` or ``None`` if unannounced.
+        episode_count: Number of episodes TMDB lists for the season.
+        season_number: ``0`` is the specials season, not a regular one. Real
+            seasons start at ``1``.
+        poster_path: Path to the season poster, not a full URL. May be
+            ``None``.
+        vote_average: ``0.0`` means "no votes", not a real rating.
+    """
+
+    id: int
+    name: str | None = None
+    overview: str | None = None
+    air_date: str | None = None
+    episode_count: int | None = None
+    season_number: int | None = None
+    poster_path: str | None = None
+
+
 class TmdbTvDetails(TmdbModel):
     """Response of ``/tv/{id}``.
 
@@ -121,8 +151,10 @@ class TmdbTvDetails(TmdbModel):
     number_of_seasons: int | None = None
     number_of_episodes: int | None = None
     overview: str | None = None
+    original_language: str | None = None
     poster_path: str | None = None
     vote_average: float | None = None
+    seasons: list[TmdbSeasonSummary] = Field(default_factory=list)
     genres: list[TmdbGenre] = Field(default_factory=list)
     external_ids: TmdbExternalIds | None = None
 

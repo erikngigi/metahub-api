@@ -19,7 +19,7 @@ Details that can't be used raise ``ProviderBadResponse``.
 from datetime import date
 
 from app.exceptions.errors import ProviderBadResponse
-from app.models.domain.media import Episode, Media, MediaStatus, MediaType, Movie, Series
+from app.models.domain.media import Episode, Media, MediaStatus, MediaType, Movie, SeasonSummary, Series
 from app.models.domain.search_result import SearchResult
 from app.models.domain.season import EpisodeListItem, Season, SeasonDetailsResponse
 from app.models.raw.tmdb import (
@@ -30,6 +30,7 @@ from app.models.raw.tmdb import (
     TmdbSearchItem,
     TmdbSearchResponse,
     TmdbSeasonDetails,
+    TmdbSeasonSummary,
     TmdbTvDetails,
 )
 
@@ -98,6 +99,22 @@ def _genre_names(genres: list[TmdbGenre]) -> list[str]:
     return [g.name for g in genres if g.name]
 
 
+def _season_summaries(seasons: list[TmdbSeasonSummary]) -> list[SeasonSummary]:
+    """Return a summary for each season that has a season number."""
+    return [
+        SeasonSummary(
+            season_number=s.season_number,
+            name=_clean(s.name),
+            episode_count=s.episode_count or None,
+            premiere_date=_parse_date(s.air_date),
+            plot=_clean(s.overview),
+            poster_url=_image_url(s.poster_path),
+        )
+        for s in seasons
+        if s.season_number is not None
+    ]
+
+
 def _imdb_id(external_ids: TmdbExternalIds | None) -> str | None:
     """Return the cleaned IMDb ID from an external-ids block, if present."""
     return _clean(external_ids.imdb_id) if external_ids else None
@@ -144,15 +161,17 @@ def map_search_item(item: TmdbSearchItem, default_kind: str | None = None) -> Se
         title, date = _clean(item.title), item.release_date
     else:
         title, date = _clean(item.name), item.first_air_date
+
     if not title:
         return None
 
     return SearchResult(
         source=PROVIDER_NAME,
-        source_id=f"{kind}:{item.id}",
-        imdb_id=None,
+        source_id=item.id,
         media_type=media_type,
         title=title,
+        original_title=_clean(item.original_title or item.original_name),
+        overview=item.overview,
         year=_parse_year(date),
         poster_url=_image_url(item.poster_path),
     )
@@ -182,14 +201,16 @@ def map_movie(raw: TmdbMovieDetails) -> Movie:
         ProviderBadResponse: If the movie has no title.
     """
     title = _clean(raw.title)
+    original_title = _clean(raw.original_title)
+
     if not title:
         raise ProviderBadResponse(PROVIDER_NAME, "movie details missing title")
 
     return Movie(
         source=PROVIDER_NAME,
-        source_id=f"movie:{raw.id}",
-        imdb_id=_clean(raw.imdb_id),
+        source_id=raw.id,
         title=title,
+        original_title=original_title,
         year=_parse_year(raw.release_date),
         plot=_clean(raw.overview),
         genres=_genre_names(raw.genres),
@@ -216,7 +237,7 @@ def map_tv(raw: TmdbTvDetails) -> Series:
     has_ended = (raw.status or "").strip().lower() in _ENDED_STATUSES
     return Series(
         source=PROVIDER_NAME,
-        source_id=f"tv:{raw.id}",
+        source_id=raw.id,
         imdb_id=_imdb_id(raw.external_ids),
         title=title,
         year=_parse_year(raw.first_air_date),
@@ -227,7 +248,9 @@ def map_tv(raw: TmdbTvDetails) -> Series:
         end_year=_parse_year(raw.last_air_date) if has_ended else None,
         total_seasons=raw.number_of_seasons or None,
         total_episodes=raw.number_of_episodes or None,
+        original_language=raw.original_language or None,
         status=_map_status(raw.status),
+        seasons=_season_summaries(raw.seasons),
     )
 
 
@@ -272,7 +295,7 @@ def map_season_details(raw: TmdbSeasonDetails, *, show_id: int, season: int) -> 
             plot=_clean(raw.overview),
             poster_url=_image_url(raw.poster_path),
         ),
-        episodes=episodes,
+        # episodes=episodes,
     )
 
 

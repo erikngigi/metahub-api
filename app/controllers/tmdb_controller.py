@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Path
 from app.api.deps import SearchParams, get_search_params, make_provider_getter
 from app.models.domain.media import Episode, Movie, Series
 from app.models.domain.search_result import SearchResult
-from app.models.domain.season import SeasonDetailsResponse
+from app.models.domain.season import EpisodeLabel, SeasonDetailsResponse
 from app.providers.tmdb_provider import TmdbProvider
 
 router = APIRouter(
@@ -107,3 +107,21 @@ async def get_show_season(
     `season=0` returns specials. This makes a single TMDB request.
     """
     return await provider.get_show_season(show_id, season)
+
+
+@router.get(
+    "/shows/{show_id}/seasons/{season}/labels",
+    response_model=list[EpisodeLabel],
+    summary="Formatted episode names for a season",
+)
+async def get_season_labels(
+    show_id: ShowId,
+    season: SeasonNumber,
+    provider: TmdbProvider = Depends(get_tmdb),
+) -> list[EpisodeLabel]:
+    """Return `Show S01E01 - Episode` labels for every episode in a season.
+
+    Characters that are illegal in filenames (`: / \\ ? * " < > |`) are removed.
+    Episodes without a number are skipped.
+    """
+    return await provider.get_season_labels(show_id, season)

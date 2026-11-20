@@ -13,6 +13,7 @@ Errors:
     error-text parsing is needed here.
 """
 
+import asyncio
 import logging
 from typing import Any, TypeVar
 
@@ -24,7 +25,7 @@ from app.exceptions.errors import ProviderAuthError, ProviderBadResponse, Provid
 from app.mappers import tmdb_mapper
 from app.models.domain.media import Media, MediaType, Movie, Series
 from app.models.domain.search_result import SearchResult
-from app.models.domain.season import SeasonDetailsResponse
+from app.models.domain.season import EpisodeLabel, SeasonDetailsResponse
 from app.models.raw.tmdb import (
     TmdbMovieDetails,
     TmdbSearchResponse,
@@ -32,6 +33,7 @@ from app.models.raw.tmdb import (
     TmdbTvDetails,
 )
 from app.providers.base import BaseProvider
+from app.services.naming import format_episode_label
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +171,34 @@ class TmdbProvider(BaseProvider):
         except ValidationError as exc:
             self._log_domain_error(exc)
             raise ProviderBadResponse(self.name, "season failed domain validation") from exc
+
+    async def get_season_labels(self, show_id: int, season: int) -> list[EpisodeLabel]:
+        """Build ``Show S01E01 - Episode`` labels for every episode of a season.
+
+        Makes two concurrent requests: the show (for its name) and the season
+        (for its episodes). Episodes without a number are skipped, because a
+        label can't be built without one.
+
+        Raises:
+            ProviderNotFound: TMDB has no such show or season.
+            ProviderBadResponse: TMDB's data failed validation.
+        """
+        show, season_details = await asyncio.gather(
+            self.get_show(show_id),
+            self.get_show_season(show_id, season),
+        )
+        return [
+            EpisodeLabel(
+                label=format_episode_label(show.title, season, ep.number, ep.name),
+                show=show.title,
+                season=season,
+                episode=ep.number,
+                episode_title=ep.name,
+                source=self.name,
+            )
+            for ep in season_details.episodes
+            if ep.number is not None
+        ]
 
     # ---------- Generic entry point ----------
 

@@ -11,6 +11,7 @@ Anime is not a separate media type. It is expressed through the ``is_anime``
 flag and extra optional fields, so ``media_type`` filtering keeps working.
 """
 
+from datetime import date
 from enum import Enum
 from typing import Annotated, Literal, Union
 
@@ -59,17 +60,17 @@ class MediaBase(BaseModel):
 
     # --- Provenance ---
     source: str  # which provider produced this record
-    source_id: str  # that provider's ID for the item
+    source_id: int  # that provider's ID for the item
 
     # --- Identifiers ---
     # Known keys: imdb, tmdb, tvdb, anilist, mal, anidb, kitsu
-    external_ids: dict[str, str] = Field(default_factory=dict)
-    imdb_id: str | None = None  # kept for convenience; synced with external_ids["imdb"]
+    # external_ids: dict[str, str] = Field(default_factory=dict)
+    # imdb_id: str | None = None  # kept for convenience; synced with external_ids["imdb"]
 
     # --- Titles ---
     title: str
     original_title: str | None = None
-    alternative_titles: list[str] = Field(default_factory=list)  # romaji, English, native, aliases
+    # alternative_titles: list[str] = Field(default_factory=list)  # romaji, English, native, aliases
 
     # --- Descriptive data ---
     year: int | None = None
@@ -81,41 +82,41 @@ class MediaBase(BaseModel):
     # --- Classification ---
     is_anime: bool | None = None  # None = unknown; a mapper sets it only when confident
 
-    @model_validator(mode="after")
-    def _normalise(self) -> "MediaBase":
-        """Enforce consistency rules after validation.
-
-        - Keeps ``imdb_id`` and ``external_ids["imdb"]`` in agreement,
-          whichever one was supplied.
-        - Lowercases ``external_ids`` keys and drops empty entries.
-        - Removes duplicate alternative titles (case-insensitive) and any that
-          repeat ``title`` or ``original_title``, preserving order.
-
-        Mutates ``self`` in place. This is safe only while
-        ``validate_assignment`` is off.
-        """
-
-        # Keep imdb_id and external_ids["imdb"] in agreement, in either direction.
-        ids = {k.strip().lower(): v for k, v in self.external_ids.items() if k.strip() and v}
-        if self.imdb_id and "imdb" not in ids:
-            ids["imdb"] = self.imdb_id
-        elif "imdb" in ids and not self.imdb_id:
-            self.imdb_id = ids["imdb"]
-        self.external_ids = ids
-
-        # De-duplicate alternative titles (case-insensitive), preserving order,
-        # and drop any that just repeat the main or original title.
-        seen = {self.title.casefold()}
-        if self.original_title:
-            seen.add(self.original_title.casefold())
-        unique: list[str] = []
-        for alt in self.alternative_titles:
-            alt = alt.strip()
-            if alt and alt.casefold() not in seen:
-                seen.add(alt.casefold())
-                unique.append(alt)
-        self.alternative_titles = unique
-        return self
+    # @model_validator(mode="after")
+    # def _normalise(self) -> "MediaBase":
+    #     """Enforce consistency rules after validation.
+    #
+    #     - Keeps ``imdb_id`` and ``external_ids["imdb"]`` in agreement,
+    #       whichever one was supplied.
+    #     - Lowercases ``external_ids`` keys and drops empty entries.
+    #     - Removes duplicate alternative titles (case-insensitive) and any that
+    #       repeat ``title`` or ``original_title``, preserving order.
+    #
+    #     Mutates ``self`` in place. This is safe only while
+    #     ``validate_assignment`` is off.
+    #     """
+    #
+    #     # Keep imdb_id and external_ids["imdb"] in agreement, in either direction.
+    #     ids = {k.strip().lower(): v for k, v in self.external_ids.items() if k.strip() and v}
+    #     if self.imdb_id and "imdb" not in ids:
+    #         ids["imdb"] = self.imdb_id
+    #     elif "imdb" in ids and not self.imdb_id:
+    #         self.imdb_id = ids["imdb"]
+    #     self.external_ids = ids
+    #
+    #     # De-duplicate alternative titles (case-insensitive), preserving order,
+    #     # and drop any that just repeat the main or original title.
+    #     seen = {self.title.casefold()}
+    #     if self.original_title:
+    #         seen.add(self.original_title.casefold())
+    #     unique: list[str] = []
+    #     for alt in self.alternative_titles:
+    #         alt = alt.strip()
+    #         if alt and alt.casefold() not in seen:
+    #             seen.add(alt.casefold())
+    #             unique.append(alt)
+    #     self.alternative_titles = unique
+    #     return self
 
 
 class Movie(MediaBase):
@@ -128,6 +129,28 @@ class Movie(MediaBase):
 
     media_type: Literal[MediaType.MOVIE] = MediaType.MOVIE
     runtime_minutes: int | None = None
+
+
+class SeasonSummary(BaseModel):
+    """A season as listed in a series response; no episodes.
+
+    Attributes:
+        season_number: ``0`` conventionally means specials.
+        name: Season title, e.g. ``"Season 1"`` or ``"Specials"``.
+        episode_count: Episodes announced by the provider; ``None`` if unknown.
+        premiere_date: Date the season started airing.
+        plot: Season synopsis; ``None`` when the provider has none.
+        poster_url: Absolute season poster URL.
+        rating: Out of 10; ``None`` if unrated.
+    """
+
+    season_number: int
+    name: str | None = None
+    episode_count: int | None = None
+    premiere_date: date | None = None
+    plot: str | None = None
+    poster_url: str | None = None
+    rating: float | None = None
 
 
 class Series(MediaBase):
@@ -151,7 +174,9 @@ class Series(MediaBase):
     end_year: int | None = None
     total_seasons: int | None = None
     total_episodes: int | None = None
+    original_language: str | None = None
     status: MediaStatus | None = None
+    seasons: list[SeasonSummary] = Field(default_factory=list)
 
 
 class Episode(MediaBase):

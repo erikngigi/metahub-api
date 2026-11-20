@@ -33,10 +33,13 @@ class Settings(BaseSettings):
     http_max_retries: int = Field(2, ge=0, le=5)
     http_retry_backoff_seconds: float = Field(0.5, ge=0)
 
-    # --- Providers ---
+    # --- Providers Access Tokens ---
     tmdb_read_access_token: SecretStr | None = None
-    tmdb_base_url: str = "https://api.themoviedb.org/3"
-    tvmaze_base_url: str = "https://api.tvmaze.com"
+
+    # --- Providers URLs ---
+    tmdb_base_url: str | None = None
+    tvmaze_base_url: str | None = None
+    tenrai_base_url: str | None = None
 
     @property
     def client_api_key_set(self) -> frozenset[str]:

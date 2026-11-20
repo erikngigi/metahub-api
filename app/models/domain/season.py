@@ -56,11 +56,25 @@ class EpisodeListItem(BaseModel):
     episode_format_listing: str | None = Field(default=None, description="Episode format listing")
 
 
+class EpisodeLabel(BaseModel):
+    """A formatted episode name, with the data it was built from."""
+
+    label: str = Field(
+        description="Formatted name, e.g. `Southland S01E01 - Unknown Trouble`.",
+        examples=["Southland S01E01 - Unknown Trouble"],
+    )
+    # show: str = Field(description="Show title the label was built from.", examples=["Southland"])
+    # season: int = Field(description="Season number.", examples=[1])
+    # episode: int = Field(description="Episode number within the season.", examples=[1])
+    # episode_title: str = Field(description="Episode title as reported by the provider.", examples=["Unknown Trouble"])
+    # source: str = Field(description="Provider the names came from.", examples=["tmdb"])
+
+
 class SeasonDetailsResponse(BaseModel):
     """One season together with its episodes."""
 
     season: Season = Field(description="Summary of the season.")
-    episodes: list[EpisodeListItem] = Field(description="Episodes in season order.")
+    # episodes: list[EpisodeListItem] = Field(description="Episodes in season order.")
 
 
 class SeasonEpisodesResponse(BaseModel):

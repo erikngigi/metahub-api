@@ -27,26 +27,25 @@ class SearchResult(BaseModel):
             accepts. Only unique within ``source``. TMDB IDs carry a kind
             prefix (``movie:27205``, ``tv:1396``) because movies and shows
             share number ranges.
-        imdb_id: IMDb ID if the provider supplies one in search results.
-            ``None`` is common (TMDB search does not include it), so do not
-            treat it as "has no IMDb entry". It is filled in by
-            ``get_details()``.
         media_type: Movie or series. Search does not return episodes. Anime
             appears under its normal format; see ``is_anime``.
         title: Display title as reported by the provider.
+        original_title: Display the original title of the item.
+        overview: Display plot summary of the item.
+        poster_url: Absolute URL of a poster image, or ``None``.
         year: Release or first-air year. ``None`` for unreleased or undated
             titles.
-        poster_url: Absolute URL of a poster image, or ``None``.
         is_anime: ``True`` or ``False`` when a mapper is confident, ``None``
             when unknown. ``None`` is not the same as ``False``. Use it to
             label or filter results, not as a guarantee.
     """
 
     source: str
-    source_id: str
-    imdb_id: str | None = None
+    source_id: int
     media_type: MediaType
     title: str
-    year: int | None = None
+    original_title: str | None = None
+    overview: str | None = None
     poster_url: str | None = None
+    year: int | None = None
     is_anime: bool | None = None
