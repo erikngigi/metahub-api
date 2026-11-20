@@ -45,7 +45,5 @@ class SearchResult(BaseModel):
     media_type: MediaType
     title: str
     original_title: str | None = None
-    overview: str | None = None
     poster_url: str | None = None
     year: int | None = None
-    is_anime: bool | None = None

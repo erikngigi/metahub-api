@@ -55,10 +55,7 @@ class TmdbSearchItem(TmdbModel):
     original_name: str | None = None
     release_date: str | None = None
     first_air_date: str | None = None
-    overview: str | None = None
     poster_path: str | None = None
-    vote_average: float | None = None
-    genre_ids: list[int] = Field(default_factory=list)
 
 
 class TmdbSearchResponse(TmdbModel):

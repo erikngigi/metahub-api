@@ -171,7 +171,6 @@ def map_search_item(item: TmdbSearchItem, default_kind: str | None = None) -> Se
         media_type=media_type,
         title=title,
         original_title=_clean(item.original_title or item.original_name),
-        overview=item.overview,
         year=_parse_year(date),
         poster_url=_image_url(item.poster_path),
     )
